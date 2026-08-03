@@ -7,7 +7,8 @@
 
 ## 한 줄 요약
 
-NKS(NHN Kubernetes Service)에서 측정한 스토리지 성능이 **읽기와 쓰기 모두 약 2,000 IOPS**로 수렴하는 현상을 발견했으나, managed 플랫폼 특성상 원인을 확인할 수 없었습니다. 동등한 형태의 스택(OpenStack + Ceph + K8s)을 직접 구축하여 물리 디스크부터 Pod까지 6개 계층의 성능을 분리 측정한 결과, **NKS의 수치는 백엔드 하드웨어의 성능 한계라기보다 QoS 정책의 결과일 가능성이 높다**고 판단했습니다.
+NKS(NHN Kubernetes Service)에서 측정한 스토리지 성능이 **읽기와 쓰기 모두 약 2,000 IOPS**로 수렴하는 현상을 발견했으나, managed 플랫폼 특성상 원인을 확인할 수 없었습니다. 
+동등한 형태의 스택(OpenStack + Ceph + K8s)을 직접 구축하여 물리 디스크부터 Pod까지 6개 계층의 성능을 분리 측정한 결과, **NKS의 수치는 백엔드 하드웨어의 성능 한계라기보다 QoS 정책의 결과일 가능성이 높다**고 판단했습니다.
 
 <img width="1420" height="559" alt="image" src="https://github.com/user-attachments/assets/da544028-71a1-4bf4-90cc-f55dfde5f044" />
 
