@@ -2,13 +2,14 @@
 
 > NKS의 I/O 성능 수치를 해석하기 위해 동등한 형태의 스택을 직접 구축하고,
 > 계층별 성능 손실을 정량적으로 분리해 본 프로젝트입니다.
-<img width="1420" height="559" alt="image" src="https://github.com/user-attachments/assets/da544028-71a1-4bf4-90cc-f55dfde5f044" />
 
 ---
 
 ## 한 줄 요약
 
 NKS(NHN Kubernetes Service)에서 측정한 스토리지 성능이 **읽기와 쓰기 모두 약 2,000 IOPS**로 수렴하는 현상을 발견했으나, managed 플랫폼 특성상 원인을 확인할 수 없었습니다. 동등한 형태의 스택(OpenStack + Ceph + K8s)을 직접 구축하여 물리 디스크부터 Pod까지 6개 계층의 성능을 분리 측정한 결과, **NKS의 수치는 백엔드 하드웨어의 성능 한계라기보다 QoS 정책의 결과일 가능성이 높다**고 판단했습니다.
+
+<img width="1420" height="559" alt="image" src="https://github.com/user-attachments/assets/da544028-71a1-4bf4-90cc-f55dfde5f044" />
 
 > 본 프로젝트의 결론은 외부에서 관측 가능한 지표만을 근거로 한 추론입니다. NKS의 내부 구성이나 정책 설정값을 직접 확인한 것은 아닙니다.
 
