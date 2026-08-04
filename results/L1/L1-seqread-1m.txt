@@ -1,0 +1,32 @@
+WARNING: IPv4 forwarding is disabled. Networking will not work.
+seqread-test: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=16
+fio-3.6
+Starting 1 process
+
+seqread-test: (groupid=0, jobs=1): err= 0: pid=8: Fri Jul 31 10:07:07 2026
+   read: IOPS=6592, BW=6592MiB/s (6912MB/s)(386GiB/60003msec)
+    slat (usec): min=15, max=2731, avg=18.85, stdev=12.40
+    clat (usec): min=428, max=11913, avg=2407.50, stdev=221.75
+     lat (usec): min=505, max=12780, avg=2426.46, stdev=223.60
+    clat percentiles (usec):
+     |  1.00th=[ 2180],  5.00th=[ 2311], 10.00th=[ 2343], 20.00th=[ 2376],
+     | 30.00th=[ 2376], 40.00th=[ 2376], 50.00th=[ 2376], 60.00th=[ 2409],
+     | 70.00th=[ 2409], 80.00th=[ 2442], 90.00th=[ 2442], 95.00th=[ 2474],
+     | 99.00th=[ 2802], 99.50th=[ 3523], 99.90th=[ 6128], 99.95th=[ 6194],
+     | 99.99th=[ 7242]
+   bw (  MiB/s): min= 4708, max= 6654, per=100.00%, avg=6591.95, stdev=194.78, samples=120
+   iops        : min= 4708, max= 6654, avg=6591.93, stdev=194.78, samples=120
+  lat (usec)   : 500=0.01%, 750=0.01%, 1000=0.02%
+  lat (msec)   : 2=0.45%, 4=99.16%, 10=0.37%, 20=0.01%
+  cpu          : usr=0.83%, sys=15.63%, ctx=389726, majf=0, minf=4108
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=100.0%, 32=0.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.1%, 32=0.0%, 64=0.0%, >=64=0.0%
+     issued rwts: total=395545,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=16
+
+Run status group 0 (all jobs):
+   READ: bw=6592MiB/s (6912MB/s), 6592MiB/s-6592MiB/s (6912MB/s-6912MB/s), io=386GiB (415GB), run=60003-60003msec
+
+Disk stats (read/write):
+  vdd: ios=789702/0, merge=0/0, ticks=1900139/0, in_queue=1900139, util=99.88%
