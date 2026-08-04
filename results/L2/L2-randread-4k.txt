@@ -1,0 +1,36 @@
+WARNING: IPv4 forwarding is disabled. Networking will not work.
+randread-test: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=32
+...
+fio-3.6
+Starting 4 processes
+
+randread-test: (groupid=0, jobs=4): err= 0: pid=8: Fri Jul 31 10:43:38 2026
+   read: IOPS=24.3k, BW=95.1MiB/s (99.7MB/s)(5708MiB/60016msec)
+    slat (nsec): min=773, max=2793.8k, avg=21588.18, stdev=30501.39
+    clat (nsec): min=677, max=66958k, avg=5234041.64, stdev=9664398.43
+     lat (usec): min=60, max=66977, avg=5255.90, stdev=9665.18
+    clat percentiles (usec):
+     |  1.00th=[  210],  5.00th=[  273], 10.00th=[  322], 20.00th=[  400],
+     | 30.00th=[  486], 40.00th=[  586], 50.00th=[  734], 60.00th=[  971],
+     | 70.00th=[ 1516], 80.00th=[ 5800], 90.00th=[23725], 95.00th=[29230],
+     | 99.00th=[36439], 99.50th=[39584], 99.90th=[48497], 99.95th=[53216],
+     | 99.99th=[60556]
+   bw (  KiB/s): min=15560, max=32576, per=25.00%, avg=24349.21, stdev=3150.54, samples=480
+   iops        : min= 3890, max= 8144, avg=6087.30, stdev=787.64, samples=480
+  lat (nsec)   : 750=0.01%, 1000=0.01%
+  lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.01%
+  lat (usec)   : 100=0.01%, 250=3.06%, 500=28.53%, 750=19.42%, 1000=9.93%
+  lat (msec)   : 2=12.42%, 4=4.83%, 10=4.38%, 20=4.66%, 50=12.67%
+  lat (msec)   : 100=0.08%
+  cpu          : usr=1.84%, sys=4.12%, ctx=2441333, majf=0, minf=167
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=100.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.1%, 64=0.0%, >=64=0.0%
+     issued rwts: total=1461147,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=32
+
+Run status group 0 (all jobs):
+   READ: bw=95.1MiB/s (99.7MB/s), 95.1MiB/s-95.1MiB/s (99.7MB/s-99.7MB/s), io=5708MiB (5985MB), run=60016-60016msec
+
+Disk stats (read/write):
+  rbd0: ios=1458637/0, merge=0/0, ticks=7614889/0, in_queue=7614890, util=99.90%
