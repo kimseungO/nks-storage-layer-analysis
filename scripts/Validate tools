@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# =============================================================================
+# validate_tools.sh — 측정 도구 검증 (native fio vs 컨테이너 fio)
+#
+# 목적:
+#   NKS 측정에 사용한 컨테이너 이미지(ljishen/fio, 3.6)와
+#   native fio(3.28)의 결과가 일치하는지 확인합니다.
+#
+# 전제 조건:
+#   - 대상 디바이스가 프리컨디셔닝된 상태여야 합니다.
+#     (precondition.sh 선행 실행 필수)
+#   - 미실시 시 SSD FOB 상태로 인해 최대 52%의 편차가 발생할 수 있습니다.
+#
+# 사용법:
+#   ./validate_tools.sh /dev/nvme0n1p6
+#
+# 판정 기준:
+#   두 결과의 IOPS 차이가 5% 이내이면 도구 통일 가능으로 판단합니다.
+# =============================================================================
+
+set -euo pipefail
+
+DEV="${1:-}"
+OUT_DIR="${OUT_DIR:-./results/validate}"
+IMAGE="ljishen/fio"
+
+if [[ -z "$DEV" ]]; then
+    echo "사용법: $0 <device>"
+    echo "예시  : $0 /dev/nvme0n1p6"
+    exit 1
+fi
+
+if [[ ! -b "$DEV" ]]; then
+    echo "[오류] 블록 디바이스가 아닙니다: $DEV"
+    exit 1
+fi
+
+mkdir -p "$OUT_DIR"
+
+FIO_OPTS=(
+    --direct=1
+    --ioengine=libaio
+    --rw=randwrite
+    --bs=4k
+    --iodepth=32
+    --numjobs=4
+    --size=2G
+    --runtime=60
+    --time_based
+    --group_reporting
+    --offset_increment=2G
+)
+
+echo "========================================"
+echo " 측정 도구 검증"
+echo " 대상: $DEV"
+echo "========================================"
+echo ""
+echo "[주의] 대상 디바이스의 데이터가 파괴됩니다."
+read -rp "계속하시겠습니까? (y/N): " confirm
+[[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "중단합니다."; exit 0; }
+
+# --- 1회차: native ---
+echo ""
+echo "--- [1/4] native fio ---"
+if ! command -v fio &>/dev/null; then
+    echo "[오류] native fio가 설치되어 있지 않습니다. (apt install fio)"
+    exit 1
+fi
+fio --name=validate-native-1 --filename="$DEV" "${FIO_OPTS[@]}" \
+    --output="$OUT_DIR/native-1.txt"
+
+# --- 2회차: container ---
+echo "--- [2/4] container fio ---"
+docker run --rm --privileged -v /dev:/dev "$IMAGE" \
+    --name=validate-container-1 --filename="$DEV" "${FIO_OPTS[@]}" \
+    > "$OUT_DIR/container-1.txt" 2>&1
+
+# --- 3회차: native (교차 확인) ---
+echo "--- [3/4] native fio (재측정) ---"
+fio --name=validate-native-2 --filename="$DEV" "${FIO_OPTS[@]}" \
+    --output="$OUT_DIR/native-2.txt"
+
+# --- 4회차: container (교차 확인) ---
+echo "--- [4/4] container fio (재측정) ---"
+docker run --rm --privileged -v /dev:/dev "$IMAGE" \
+    --name=validate-container-2 --filename="$DEV" "${FIO_OPTS[@]}" \
+    > "$OUT_DIR/container-2.txt" 2>&1
+
+# --- 결과 요약 ---
+echo ""
+echo "========================================"
+echo " 결과 요약"
+echo "========================================"
+for f in native-1 container-1 native-2 container-2; do
+    printf "%-14s : " "$f"
+    grep -oP 'IOPS=\K[0-9.]+k?' "$OUT_DIR/$f.txt" | head -1
+done
+
+echo ""
+echo "판정: 교대 측정한 native/container의 IOPS 차이가 5% 이내이면"
+echo "      도구 차이가 결과에 영향을 주지 않는 것으로 판단합니다."
+echo ""
+echo "원본 결과: $OUT_DIR/"
