@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# =============================================================================
+# precondition.sh — SSD 프리컨디셔닝
+#
+# 목적:
+#   신규 파티션이나 씬 프로비저닝된 볼륨은 대부분의 블록이 미기록 상태이므로,
+#   가비지 컬렉션 부담 없이 일시적으로 높은 성능을 보입니다(FOB 상태).
+#   측정 전 전체 영역을 채워 steady state에 근접시킵니다.
+#
+# 사용법:
+#   # raw 블록 디바이스
+#   ./precondition.sh raw /dev/rbd0 20G
+#
+#   # 파일시스템 (마운트 경로)
+#   ./precondition.sh fs /mnt/rbd-l3 8G
+#
+# 크기 지정 가이드:
+#   raw : 전체 파티션 크기 (Replica 3 환경에서는 클러스터 용량 고려)
+#   fs  : numjobs × 2G 이상 (offset_increment로 분리된 워킹셋 전체)
+# =============================================================================
+
+set -euo pipefail
+
+MODE="${1:-}"
+TARGET="${2:-}"
+SIZE="${3:-}"
+IMAGE="ljishen/fio"
+
+usage() {
+    cat <<'EOF'
+사용법:
+  ./precondition.sh raw <device> <size>
+  ./precondition.sh fs  <mount_path> <size>
+
+예시:
+  ./precondition.sh raw /dev/nvme0n1p6 49G
+  ./precondition.sh raw /dev/rbd0 20G
+  ./precondition.sh fs  /mnt/rbd-l3 8G
+EOF
+    exit 1
+}
+
+[[ -z "$MODE" || -z "$TARGET" || -z "$SIZE" ]] && usage
+
+FIO_OPTS=(
+    --name=precondition
+    --direct=1
+    --ioengine=libaio
+    --rw=write
+    --bs=1M
+    --iodepth=32
+    --numjobs=1
+    --size="$SIZE"
+    --group_reporting
+)
+
+case "$MODE" in
+raw)
+    [[ -b "$TARGET" ]] || { echo "[오류] 블록 디바이스가 아닙니다: $TARGET"; exit 1; }
+    echo "========================================"
+    echo " 프리컨디셔닝 (raw)"
+    echo " 대상: $TARGET / 크기: $SIZE"
+    echo "========================================"
+    echo "[주의] 대상 디바이스의 데이터가 파괴됩니다."
+    read -rp "계속하시겠습니까? (y/N): " confirm
+    [[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "중단합니다."; exit 0; }
+
+    docker run --rm --privileged -v /dev:/dev "$IMAGE" \
+        --filename="$TARGET" "${FIO_OPTS[@]}"
+    ;;
+
+fs)
+    [[ -d "$TARGET" ]] || { echo "[오류] 디렉토리가 아닙니다: $TARGET"; exit 1; }
+    echo "========================================"
+    echo " 프리컨디셔닝 (파일시스템)"
+    echo " 대상: $TARGET/testfile / 크기: $SIZE"
+    echo "========================================"
+
+    docker run --rm -v "$TARGET":/data "$IMAGE" \
+        --filename=/data/testfile "${FIO_OPTS[@]}"
+    ;;
+
+*)
+    usage
+    ;;
+esac
+
+echo ""
+echo "프리컨디셔닝 완료. 이제 측정을 진행할 수 있습니다."
