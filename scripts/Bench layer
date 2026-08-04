@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bench_layer.sh — 계층별 fio 4종 측정
+#
+# 목적:
+#   전 계층에서 동일한 fio 프로파일로 4종(randwrite/randread/seqwrite/seqread)을
+#   측정하여 계층 간 비교가 가능하도록 합니다.
+#
+# 전제 조건:
+#   1. precondition.sh 선행 실행 (필수)
+#   2. observe.sh로 관측 터미널 기동 (권장)
+#
+# 사용법:
+#   # L0: 호스트 raw 디바이스
+#   ./bench_layer.sh L0 raw /dev/nvme0n1p6
+#
+#   # L1: KVM 게스트 raw 디바이스
+#   ./bench_layer.sh L1 raw /dev/vdd
+#
+#   # L2: Ceph RBD raw
+#   ./bench_layer.sh L2 raw /dev/rbd0
+#
+#   # L3/L4: 파일시스템 (마운트 경로)
+#   ./bench_layer.sh L3 fs /mnt/rbd-l3
+#   ./bench_layer.sh L4 ctr /mnt/rbd-l4      # containerd 환경
+#
+#   # L5: K8s Pod
+#   ./bench_layer.sh L5 k8s fio-l5
+#
+# 실행 방식(mode):
+#   raw  : docker + --privileged -v /dev:/dev
+#   fs   : docker + bind mount
+#   ctr  : containerd(ctr) + bind mount  (K8s 노드용)
+#   k8s  : kubectl exec
+# =============================================================================
+
+set -euo pipefail
+
+LAYER="${1:-}"
+MODE="${2:-}"
+TARGET="${3:-}"
+IMAGE="ljishen/fio"
+OUT_DIR="${OUT_DIR:-./results/$LAYER}"
+
+usage() {
+    cat <<'EOF'
+사용법:
+  ./bench_layer.sh <layer> <mode> <target>
+
+  layer  : L0 ~ L6 (결과 저장 디렉토리명)
+  mode   : raw | fs | ctr | k8s
+  target : 디바이스 경로 | 마운트 경로 | Pod 이름
+
+예시:
+  ./bench_layer.sh L0 raw /dev/nvme0n1p6
+  ./bench_layer.sh L3 fs  /mnt/rbd-l3
+  ./bench_layer.sh L4 ctr /mnt/rbd-l4
+  ./bench_layer.sh L5 k8s fio-l5
+EOF
+    exit 1
+}
+
+[[ -z "$LAYER" || -z "$MODE" || -z "$TARGET" ]] && usage
+
+mkdir -p "$OUT_DIR"
+
+# --- 측정 프로파일 정의 --------------------------------------------------
+# 형식: 이름|rw|bs|iodepth|numjobs|offset_increment
+PROFILES=(
+    "randwrite-4k|randwrite|4k|32|4|2G"
+    "randread-4k|randread|4k|32|4|2G"
+    "seqwrite-1m|write|1M|16|1|"
+    "seqread-1m|read|1M|16|1|"
+)
+
+# --- 실행 함수 -----------------------------------------------------------
+run_fio() {
+    local name="$1" rw="$2" bs="$3" iodepth="$4" numjobs="$5" offset="$6"
+    local outfile="$OUT_DIR/$LAYER-$name.txt"
+
+    local opts=(
+        --name="$name"
+        --direct=1
+        --ioengine=libaio
+        --rw="$rw"
+        --bs="$bs"
+        --iodepth="$iodepth"
+        --numjobs="$numjobs"
+        --size=2G
+        --runtime=60
+        --time_based
+        --group_reporting
+    )
+    [[ -n "$offset" ]] && opts+=(--offset_increment="$offset")
+
+    echo ""
+    echo "--- $name (${rw} / bs=${bs} / iodepth=${iodepth} / numjobs=${numjobs}) ---"
+
+    case "$MODE" in
+    raw)
+        docker run --rm --privileged -v /dev:/dev "$IMAGE" \
+            --filename="$TARGET" "${opts[@]}" > "$outfile" 2>&1
+        ;;
+    fs)
+        docker run --rm -v "$TARGET":/data "$IMAGE" \
+            --filename=/data/testfile "${opts[@]}" > "$outfile" 2>&1
+        ;;
+    ctr)
+        ctr run --rm \
+            --mount type=bind,src="$TARGET",dst=/data,options=rbind:rw \
+            "docker.io/$IMAGE:latest" "bench-$name" \
+            fio --filename=/data/testfile "${opts[@]}" > "$outfile" 2>&1
+        ;;
+    k8s)
+        kubectl exec "$TARGET" -- fio \
+            --filename=/data/testfile "${opts[@]}" \
+            --eta=always --eta-newline=5 > "$outfile" 2>&1
+        ;;
+    *)
+        echo "[오류] 알 수 없는 mode: $MODE"; exit 1
+        ;;
+    esac
+
+    grep -E "IOPS=|clat \(|lat \(" "$outfile" | head -3 || true
+}
+
+# --- 실행 ---------------------------------------------------------------
+echo "========================================"
+echo " $LAYER 계층 측정"
+echo " mode=$MODE  target=$TARGET"
+echo " 결과: $OUT_DIR/"
+echo "========================================"
+echo ""
+echo "[확인] 프리컨디셔닝을 완료하셨습니까?"
+echo "       미실시 시 최대 52%의 편차가 발생할 수 있습니다."
+echo "[확인] 관측 터미널(observe.sh)을 기동하셨습니까?"
+read -rp "계속하시겠습니까? (y/N): " confirm
+[[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "중단합니다."; exit 0; }
+
+for p in "${PROFILES[@]}"; do
+    IFS='|' read -r name rw bs iodepth numjobs offset <<< "$p"
+    run_fio "$name" "$rw" "$bs" "$iodepth" "$numjobs" "$offset"
+done
+
+# --- 요약 ---------------------------------------------------------------
+echo ""
+echo "========================================"
+echo " $LAYER 측정 완료"
+echo "========================================"
+for p in "${PROFILES[@]}"; do
+    IFS='|' read -r name _ _ _ _ _ <<< "$p"
+    printf "%-16s : " "$name"
+    grep -oP '(IOPS=\K[0-9.]+k?)|(BW=\K[0-9.]+[KMG]iB/s)' \
+        "$OUT_DIR/$LAYER-$name.txt" 2>/dev/null | head -1 || echo "-"
+done
+
+echo ""
+echo "Little's Law 검산 (Latency = Queue Depth / IOPS)"
+echo "  4K 종목 : Queue Depth = 32 × 4 = 128"
+echo "  1M 종목 : Queue Depth = 16 × 1 =  16"
+echo ""
+echo "원본 결과: $OUT_DIR/"
